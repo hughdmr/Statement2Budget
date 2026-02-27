@@ -1,0 +1,7 @@
+{
+  "name": "statement2budget-web",
+  "private": true,
+  "dependencies": {
+    "groq-sdk": "^0.12.0"
+  }
+}

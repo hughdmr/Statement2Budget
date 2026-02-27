@@ -4,3 +4,4 @@ __pycache__/
 .DS_Store
 categories.json
 data/
+node_modules/

@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Statement2Budget</title>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f5f5f5;
+      color: #333;
+      padding: 2rem;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    h1 { margin-bottom: 0.25rem; }
+    .subtitle { color: #666; margin-bottom: 2rem; }
+
+    /* Drop zone */
+    .drop-zone {
+      border: 2px dashed #ccc;
+      border-radius: 12px;
+      padding: 3rem 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: #fff;
+      margin-bottom: 1.5rem;
+    }
+    .drop-zone:hover,
+    .drop-zone.dragover { border-color: #4a90d9; background: #f0f7ff; }
+    .drop-zone p { color: #888; }
+    .drop-zone .filename { margin-top: 0.5rem; font-weight: 600; color: #333; }
+
+    /* Buttons */
+    .btn {
+      display: inline-block;
+      padding: 0.7rem 1.8rem;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-primary { background: #4a90d9; color: #fff; }
+    .btn-primary:hover { background: #357abd; }
+    .btn-primary:disabled { background: #bbb; cursor: not-allowed; }
+    .btn-success { background: #27ae60; color: #fff; }
+    .btn-success:hover { background: #219150; }
+
+    .actions { display: flex; gap: 1rem; align-items: center; margin-bottom: 2rem; }
+
+    /* Loader */
+    .loader {
+      display: none;
+      width: 22px; height: 22px;
+      border: 3px solid #ddd;
+      border-top-color: #4a90d9;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Error */
+    .error {
+      background: #ffeaea;
+      color: #c0392b;
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      display: none;
+    }
+
+    /* Results */
+    .results { display: none; }
+    .tables { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+    .tables h2 { margin-bottom: 0.5rem; font-size: 1.1rem; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    th {
+      background: #4a90d9;
+      color: #fff;
+      padding: 0.55rem 0.75rem;
+      text-align: left;
+      font-weight: 500;
+      font-size: 0.9rem;
+    }
+    td {
+      padding: 0.45rem 0.75rem;
+      border-bottom: 1px solid #eee;
+      font-size: 0.85rem;
+    }
+    tr:last-child td { border-bottom: none; }
+    .revenus-section th { background: #27ae60; }
+
+    .summary {
+      margin-bottom: 1rem;
+      padding: 0.75rem 1rem;
+      background: #fff;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      color: #555;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+
+    @media (max-width: 768px) {
+      body { padding: 1rem; }
+      .tables { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Statement2Budget</h1>
+  <p class="subtitle">Catégorise automatiquement vos transactions bancaires SG</p>
+
+  <div class="drop-zone" id="dropZone">
+    <p>Glissez votre relevé CSV ici ou cliquez pour choisir un fichier</p>
+    <p class="filename" id="fileName"></p>
+    <input type="file" id="fileInput" accept=".csv" hidden>
+  </div>
+
+  <div class="error" id="error"></div>
+
+  <div class="actions">
+    <button class="btn btn-primary" id="btnProcess" disabled>Catégoriser</button>
+    <div class="loader" id="loader"></div>
+    <button class="btn btn-success" id="btnDownload" style="display:none">Télécharger .xlsx</button>
+  </div>
+
+  <div class="results" id="results">
+    <div class="summary" id="summary"></div>
+    <div class="tables">
+      <div>
+        <h2>Dépenses</h2>
+        <table id="tableDepenses">
+          <thead><tr><th>Date</th><th>Montant</th><th>Description</th><th>Catégorie</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="revenus-section">
+        <h2>Revenus</h2>
+        <table id="tableRevenus">
+          <thead><tr><th>Date</th><th>Montant</th><th>Description</th><th>Catégorie</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+<script>
+  let csvContent = null;
+  let resultData = null;
+  let uploadedFileName = "budget";
+
+  const dropZone   = document.getElementById("dropZone");
+  const fileInput  = document.getElementById("fileInput");
+  const fileName   = document.getElementById("fileName");
+  const btnProcess = document.getElementById("btnProcess");
+  const btnDownload= document.getElementById("btnDownload");
+  const loader     = document.getElementById("loader");
+  const errorEl    = document.getElementById("error");
+  const results    = document.getElementById("results");
+  const summary    = document.getElementById("summary");
+
+  // --- Drop zone -------------------------------------------------------------
+
+  dropZone.addEventListener("click", () => fileInput.click());
+  dropZone.addEventListener("dragover", (e) => { e.preventDefault(); dropZone.classList.add("dragover"); });
+  dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
+  dropZone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dropZone.classList.remove("dragover");
+    if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener("change", () => {
+    if (fileInput.files.length) handleFile(fileInput.files[0]);
+  });
+
+  function handleFile(file) {
+    if (!file.name.endsWith(".csv")) { showError("Veuillez sélectionner un fichier CSV."); return; }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      csvContent = e.target.result;
+      uploadedFileName = file.name.replace(".csv", "");
+      fileName.textContent = file.name;
+      btnProcess.disabled = false;
+      hideError();
+    };
+    reader.readAsText(file, "iso-8859-1");
+  }
+
+  // --- Catégoriser -----------------------------------------------------------
+
+  btnProcess.addEventListener("click", async () => {
+    if (!csvContent) return;
+
+    btnProcess.disabled = true;
+    loader.style.display = "block";
+    btnDownload.style.display = "none";
+    results.style.display = "none";
+    hideError();
+
+    try {
+      const res = await fetch("/.netlify/functions/categorize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ csv: csvContent }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erreur serveur");
+
+      resultData = data;
+      renderResults(data);
+      results.style.display = "block";
+      btnDownload.style.display = "inline-block";
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      btnProcess.disabled = false;
+      loader.style.display = "none";
+    }
+  });
+
+  // --- Affichage -------------------------------------------------------------
+
+  function renderResults(data) {
+    summary.textContent =
+      `${data.transactionCount} transactions traitées — ${data.depenses.length} dépenses, ${data.revenus.length} revenus`;
+    fillTable("tableDepenses", data.depenses);
+    fillTable("tableRevenus", data.revenus);
+  }
+
+  function fillTable(id, rows) {
+    const tbody = document.querySelector(`#${id} tbody`);
+    tbody.innerHTML = rows
+      .map((r) => `<tr><td>${esc(r.date)}</td><td>${esc(r.montant)}</td><td>${esc(r.description)}</td><td>${esc(r.categorie)}</td></tr>`)
+      .join("");
+  }
+
+  function esc(s) {
+    const d = document.createElement("div");
+    d.textContent = s || "";
+    return d.innerHTML;
+  }
+
+  // --- Téléchargement xlsx ---------------------------------------------------
+
+  btnDownload.addEventListener("click", async () => {
+    if (!resultData) return;
+    btnDownload.disabled = true;
+    btnDownload.textContent = "Préparation…";
+
+    try {
+      // Charger le template xlsx
+      const res = await fetch("/template_a_remplir.xlsx");
+      const buf = await res.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array" });
+      const ws = wb.Sheets["Transactions"];
+
+      // Effacer les données existantes à partir de la ligne 5 (index 4)
+      const range = XLSX.utils.decode_range(ws["!ref"]);
+      for (let r = 4; r <= range.e.r; r++) {
+        for (const c of [1,2,3,4, 6,7,8,9]) { // B-E et G-J
+          const addr = XLSX.utils.encode_cell({ r, c });
+          delete ws[addr];
+        }
+      }
+
+      // Remplir les dépenses (colonnes B-E, à partir de la ligne 5 = row index 4)
+      resultData.depenses.forEach((d, i) => {
+        const r = 4 + i;
+        ws[XLSX.utils.encode_cell({ r, c: 1 })] = { t: "s", v: d.date };
+        ws[XLSX.utils.encode_cell({ r, c: 2 })] = { t: "n", v: toNum(d.montant) };
+        ws[XLSX.utils.encode_cell({ r, c: 3 })] = { t: "s", v: d.description };
+        ws[XLSX.utils.encode_cell({ r, c: 4 })] = { t: "s", v: d.categorie };
+      });
+
+      // Remplir les revenus (colonnes G-J, à partir de la ligne 5 = row index 4)
+      resultData.revenus.forEach((rv, i) => {
+        const r = 4 + i;
+        ws[XLSX.utils.encode_cell({ r, c: 6 })] = { t: "s", v: rv.date };
+        ws[XLSX.utils.encode_cell({ r, c: 7 })] = { t: "n", v: toNum(rv.montant) };
+        ws[XLSX.utils.encode_cell({ r, c: 8 })] = { t: "s", v: rv.description };
+        ws[XLSX.utils.encode_cell({ r, c: 9 })] = { t: "s", v: rv.categorie };
+      });
+
+      // Mettre à jour la plage si nécessaire
+      const maxRow = 4 + Math.max(resultData.depenses.length, resultData.revenus.length) - 1;
+      if (maxRow > range.e.r) {
+        ws["!ref"] = XLSX.utils.encode_range({ s: range.s, e: { r: maxRow, c: range.e.c } });
+      }
+
+      XLSX.writeFile(wb, `budget_${uploadedFileName}.xlsx`);
+    } catch (err) {
+      showError("Erreur lors de la génération du fichier : " + err.message);
+    } finally {
+      btnDownload.disabled = false;
+      btnDownload.textContent = "Télécharger .xlsx";
+    }
+  });
+
+  function toNum(s) {
+    const n = parseFloat(String(s).replace(",", "."));
+    return isNaN(n) ? s : Math.abs(n);
+  }
+
+  // --- Helpers ---------------------------------------------------------------
+
+  function showError(msg) { errorEl.textContent = msg; errorEl.style.display = "block"; }
+  function hideError() { errorEl.style.display = "none"; }
+</script>
+
+</body>
+</html>

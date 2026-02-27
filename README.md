@@ -13,7 +13,7 @@ Outil personnel qui catégorise automatiquement les transactions d'un relevé ba
 
 ```
 .
-├── main.py                  # Script principal (chargement, prompt, sauvegarde)
+├── main.py                  # Script CLI (chargement, prompt, sauvegarde)
 ├── call_llm.py              # Appel à l'API Groq
 ├── config.py                # Configuration (clés API, modèle)
 ├── categories.json          # Catégories dépenses / revenus + mots exclus
@@ -25,6 +25,12 @@ Outil personnel qui catégorise automatiquement les transactions d'un relevé ba
 │   ├── outputs/                  # Budgets générés (.xlsx)
 │   └── template/
 │       └── template_a_remplir.xlsx
+└── web/                         # Interface web (Netlify)
+    ├── public/index.html        # Frontend (HTML/CSS/JS)
+    ├── netlify/functions/       # Serverless function
+    │   └── categorize.mjs
+    ├── netlify.toml
+    └── package.json
 ```
 
 ## Installation
@@ -73,3 +79,17 @@ Les catégories sont définies dans [categories.json](categories.json) et peuven
 - **openpyxl** — écriture XLSX
 - **Groq SDK** — appel au LLM (Llama 3.3 70B)
 - **python-dotenv** — gestion des variables d'environnement
+
+## Interface web (Netlify)
+
+Une version web est disponible dans `web/`. Elle fonctionne avec une Netlify Function (Node.js) qui appelle l'API Groq côté serveur, et un frontend statique pour uploader le CSV et télécharger le xlsx.
+
+### Déploiement
+
+```bash
+cd web
+npm install
+netlify deploy --prod
+```
+
+Ajouter la variable d'environnement `GROQ_API_KEY` dans les settings du site Netlify (Site settings → Environment variables).
