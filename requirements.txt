@@ -1,6 +1,4 @@
 pandas
-requests
 python-dotenv
-tqdm
 groq
 openpyxl

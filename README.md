@@ -7,7 +7,7 @@ Outil personnel qui catégorise automatiquement les transactions d'un relevé ba
 1. **Lecture du relevé** — Le CSV exporté depuis l'espace SG est chargé et nettoyé (filtrage des virements internes, paris sportifs, etc.).
 2. **Few-shot prompting** — Des exemples de relevés déjà catégorisés (mois précédents) sont injectés dans le prompt pour guider le modèle.
 3. **Appel LLM** — Le prompt est envoyé à l'API Groq ; le modèle retourne les transactions triées par catégorie au format CSV.
-4. **Écriture du budget** — Le résultat est écrit dans un fichier CSV et/ou XLSX respectant le template à deux tableaux (Dépenses / Revenus).
+4. **Écriture du budget** — Le résultat est écrit dans une copie du template XLSX à deux tableaux (Dépenses / Revenus).
 
 ## Arborescence
 
@@ -21,10 +21,10 @@ Outil personnel qui catégorise automatiquement les transactions d'un relevé ba
 ├── data/
 │   ├── inputs/
 │   │   ├── sog_releve/           # Relevés bancaires SG (CSV bruts)
-│   │   └── exemples_budget/      # Budgets déjà remplis (few-shot)
-│   ├── outputs/                  # Budgets générés (.csv, .xlsx)
+│   │   └── exemples_budget/      # Budgets déjà catégorisés (few-shot)
+│   ├── outputs/                  # Budgets générés (.xlsx)
 │   └── template/
-│       └── template_feuille_transactions.csv
+│       └── template_a_remplir.xlsx
 ```
 
 ## Installation
@@ -44,20 +44,19 @@ MODEL=llama-3.3-70b-versatile   # optionnel, valeur par défaut
 ## Utilisation
 
 ```bash
-# Traite automatiquement le dernier relevé trouvé dans data/inputs/sog_releve/
-python main.py
+# Traiter un relevé
+python main.py data/inputs/sog_releve/fevrier2026.csv
 
-# Spécifier un relevé et un chemin de sortie
-python main.py --releve data/inputs/sog_releve/fevrier2026.csv -o data/outputs/budget_fevrier2026.csv
+# Spécifier un chemin de sortie
+python main.py data/inputs/sog_releve/fevrier2026.csv -o mon_budget.xlsx
 ```
 
 ### Options
 
 | Argument | Description |
 |---|---|
-| `--releve` | Chemin vers le relevé CSV SG à traiter (par défaut : le dernier fichier de `data/inputs/sog_releve/`) |
-| `-o`, `--output` | Chemin de sortie du budget (par défaut : `data/outputs/budget_<nom_releve>.csv`) |
-| `-t`, `--template` | Chemin vers le template CSV (par défaut : `data/template/template_feuille_transactions.csv`) |
+| `releve` | Chemin vers le relevé CSV SG à traiter (obligatoire) |
+| `-o`, `--output` | Chemin de sortie xlsx (par défaut : `data/outputs/budget_<nom_releve>.xlsx`) |
 
 ## Catégories
 
